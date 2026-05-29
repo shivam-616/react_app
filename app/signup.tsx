@@ -17,6 +17,7 @@ export default function SignupScreen() {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    username: "",
     email: "",
     phoneNumber: "",
     password: "",
@@ -29,8 +30,14 @@ export default function SignupScreen() {
     setLoading(true);
     setError("");
     try {
-      const success = await registerUser(form);
-      if (success) {
+      const success = await registerUser(
+        form.firstName, 
+        form.lastName, 
+        form.email, 
+        form.phoneNumber, 
+        form.password,
+        form.username
+      );      if (success) {
         router.replace("/login");
       } else {
         setError("Registration failed");
@@ -57,7 +64,7 @@ export default function SignupScreen() {
         onBlur={() => setFocusedField("")}
         keyboardType={keyboardType}
         secureTextEntry={secure}
-        autoCapitalize={key === "email" ? "none" : "words"}
+        autoCapitalize={key === "email" || key === "username" ? "none" : "words"}
       />
     </View>
   );
@@ -74,6 +81,7 @@ export default function SignupScreen() {
 
         {renderInput("First Name", "firstName", "John")}
         {renderInput("Last Name", "lastName", "Doe")}
+        {renderInput("Username", "username", "johndoe")}
         {renderInput("Email Address", "email", "john@example.com", "email-address")}
         {renderInput("Phone Number", "phoneNumber", "+1 234 567 890", "phone-pad")}
         {renderInput("Password", "password", "••••••••", "default", true)}

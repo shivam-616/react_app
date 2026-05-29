@@ -13,20 +13,20 @@ import { loginUser } from "../services/authService";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [emailFocused, setEmailFocused] = useState(false);
+  const [usernameFocused, setUsernameFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) return;
+    if (!username || !password) return;
     setLoading(true);
     setError("");
     try {
-      const success = await loginUser(email, password);
+      const success = await loginUser(username, password);
       if (success) {
         router.replace("/(tabs)/dashboard");
       } else {
@@ -50,19 +50,18 @@ export default function LoginScreen() {
 
       <View className="gap-10">
         <View>
-          <Text className="text-gray-500 uppercase tracking-widest text-xs mb-2">Email Address</Text>
+          <Text className="text-gray-500 uppercase tracking-widest text-xs mb-2">Username</Text>
           <TextInput
             className={`text-white text-lg py-3 border-b ${
-              emailFocused ? "border-white" : "border-gray-800"
+              usernameFocused ? "border-white" : "border-gray-800"
             }`}
-            placeholder="email@example.com"
+            placeholder="johndoe"
             placeholderTextColor="#444"
-            value={email}
-            onChangeText={setEmail}
-            onFocus={() => setEmailFocused(true)}
-            onBlur={() => setEmailFocused(false)}
+            value={username}
+            onChangeText={setUsername}
+            onFocus={() => setUsernameFocused(true)}
+            onBlur={() => setUsernameFocused(false)}
             autoCapitalize="none"
-            keyboardType="email-address"
           />
         </View>
 

@@ -7,8 +7,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { addExpense } from "../../services/expenseService";
 
 const CATEGORIES = ["Food", "Transport", "Bills", "Shopping", "Health", "Other"];
 
@@ -17,10 +20,39 @@ export default function AddExpenseScreen() {
   const [amount, setAmount] = useState("");
   const [merchant, setMerchant] = useState("");
   const [category, setCategory] = useState("Food");
+  const [loading, setLoading] = useState(false);
 
-  const handleSave = () => {
-    // Logic to save expense would go here
-    router.back();
+  const handleSave = async () => {
+    if (!amount || !merchant) {
+      Alert.alert("Error", "Please fill in all fields.");
+      return;
+    }
+
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount)) {
+      Alert.alert("Error", "Please enter a valid amount.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const success = await addExpense({
+        merchant,
+        amount: numericAmount,
+        category,
+        currency: "USD",
+      });
+
+      if (success) {
+        router.back();
+      } else {
+        Alert.alert("Error", "Failed to save expense. Please try again.");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -93,11 +125,16 @@ export default function AddExpenseScreen() {
         {/* Save Button */}
         <TouchableOpacity
           onPress={handleSave}
+          disabled={loading}
           className="bg-white rounded-full h-16 justify-center items-center mb-10"
         >
-          <Text className="text-black font-bold uppercase tracking-widest">
-            Save Expense
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="black" />
+          ) : (
+            <Text className="text-black font-bold uppercase tracking-widest">
+              Save Expense
+            </Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

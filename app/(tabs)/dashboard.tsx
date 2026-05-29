@@ -1,34 +1,93 @@
-import React from "react";
-import { View, Text, ScrollView } from "react-native";
-
-const DUMMY_TRANSACTIONS = [
-  { id: "1", merchant: "Apple Store", amount: -1299.0, date: "May 28" },
-  { id: "2", merchant: "Salary", amount: 4500.0, date: "May 25" },
-  { id: "3", merchant: "Whole Foods", amount: -84.21, date: "May 24" },
-  { id: "4", merchant: "Netflix", amount: -15.99, date: "May 23" },
-  { id: "5", merchant: "Gas Station", amount: -45.0, date: "May 22" },
-  { id: "6", merchant: "Freelance Project", amount: 1200.0, date: "May 20" },
-  { id: "7", merchant: "Uber", amount: -22.5, date: "May 19" },
-];
+import React, { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { useFocusEffect } from "expo-router";
+import { fetchUserExpenses, AddDTO } from "../../services/expenseService";
 
 export default function DashboardScreen() {
+  const [expenses, setExpenses] = useState<AddDTO[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const loadExpenses = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchUserExpenses();
+      setExpenses(data || []);
+    } catch (err) {
+      setExpenses([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadExpenses();
+    }, [loadExpenses])
+  );
+
+  // Safely compute total
+  const totalSpent = expenses.reduce((sum, item) => {
+    const val = typeof item.amount === 'number' ? item.amount : parseFloat(item.amount as any) || 0;
+    return sum + val;
+  }, 0);
+
+  // Robust currency formatter
+  const formatCurrency = (amount: number) => {
+    try {
+      const isNegative = amount < 0;
+      const absAmount = Math.abs(amount);
+      const formatted = absAmount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,");
+      return `${isNegative ? "-" : ""}$${formatted}`;
+    } catch (e) {
+      return `$${amount || 0}`;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    } catch (e) {
+      return dateString;
+    }
+  };
+
   const today = new Date().toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
 
+  if (isLoading && expenses.length === 0) {
+    return (
+      <View className="flex-1 bg-black justify-center items-center">
+        <ActivityIndicator color="white" />
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-black pt-24">
       {/* Header Section */}
       <View className="px-10 mb-12">
-        <Text className="text-gray-500 uppercase tracking-widest text-xs mb-2">
+        <Text className="text-gray-500 uppercase tracking-widest text-[10px] mb-2 font-light">
           {today}
         </Text>
         <Text className="text-white text-6xl font-light tracking-tighter">
-          $3,182.21
+          {formatCurrency(totalSpent)}
         </Text>
-        <Text className="text-gray-600 uppercase tracking-widest text-[10px] mt-2">
+        <Text className="text-gray-500 uppercase tracking-widest text-[10px] mt-2 font-light">
           Month to Date Spent
         </Text>
       </View>
@@ -36,36 +95,65 @@ export default function DashboardScreen() {
       {/* Transactions List */}
       <View className="flex-1">
         <View className="px-10 mb-4">
-          <Text className="text-white uppercase tracking-[4px] text-sm font-bold">
+          <Text className="text-white uppercase tracking-[4px] text-xs font-light">
             Recent Activity
           </Text>
         </View>
-        <ScrollView className="flex-1 px-10">
-          {DUMMY_TRANSACTIONS.map((item) => (
-            <View
-              key={item.id}
-              className="py-6 border-b border-gray-900 flex-row justify-between items-center"
-            >
-              <View>
-                <Text className="text-white text-lg font-medium">
-                  {item.merchant}
-                </Text>
-                <Text className="text-gray-600 text-xs uppercase tracking-widest mt-1">
-                  {item.date}
-                </Text>
-              </View>
-              <Text
-                className={`text-xl ${
-                  item.amount > 0 ? "text-white" : "text-gray-500"
-                }`}
-              >
-                {item.amount > 0 ? "+" : ""}
-                {item.amount.toFixed(2)}
-              </Text>
+
+        {expenses.length === 0 ? (
+          <View className="flex-1 justify-center items-center px-10">
+            <Text className="text-gray-500 uppercase tracking-widest text-center text-xs font-light">
+              No transactions yet.{"\n"}Tap + to add one.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView 
+            className="flex-1"
+            refreshControl={
+              <RefreshControl refreshing={isLoading} onRefresh={loadExpenses} tintColor="white" />
+            }
+          >
+            <View className="px-10">
+              {expenses.map((item, index) => (
+                <View key={item.external_id || index.toString()} className="border-b border-gray-900">
+                  <TouchableOpacity
+                    onPress={() => setExpandedId(expandedId === item.external_id ? null : item.external_id)}
+                    activeOpacity={0.7}
+                    className="py-6 flex-row justify-between items-center"
+                  >
+                    <View className="flex-1">
+                      <Text className="text-white text-lg font-light tracking-wide">
+                        {item.merchant}
+                      </Text>
+                      <Text className="text-gray-500 text-[10px] uppercase tracking-widest font-light mt-1">
+                        {formatDate(item.timestamp)}
+                      </Text>
+                    </View>
+                    <Text className="text-white text-lg font-light">
+                      {formatCurrency(item.amount)}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {expandedId === item.external_id && (
+                    <View className="pb-6 pl-4 border-l border-gray-900 mb-2">
+                      <View className="gap-1">
+                        <View className="flex-row">
+                          <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light">Category: </Text>
+                          <Text className="text-gray-500 text-[10px] uppercase tracking-widest font-light">{item.category}</Text>
+                        </View>
+                        <View className="flex-row">
+                          <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light">Currency: </Text>
+                          <Text className="text-gray-500 text-[10px] uppercase tracking-widest font-light">{item.currency}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              ))}
+              <View className="h-20" />
             </View>
-          ))}
-          <View className="h-20" />
-        </ScrollView>
+          </ScrollView>
+        )}
       </View>
     </View>
   );
