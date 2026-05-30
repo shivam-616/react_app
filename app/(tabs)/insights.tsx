@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  Animated, // <-- Imported Animated!
+  Animated,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -21,19 +21,18 @@ import {
 
 type InsightView = "menu" | "categories" | "burnRate";
 
-// --- NEW ANIMATED COMPONENT FOR CATEGORIES ---
+// --- ANIMATED COMPONENT FOR CATEGORIES ---
 const AnimatedCategoryItem = ({ item, maxSpent, totalSpent, index, formatCurrency, isLast }: any) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
   const fillAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // 1. Staggered fade in and slide up
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 500,
-        delay: index * 100, // Delays each item slightly more than the last
+        delay: index * 100,
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
@@ -42,12 +41,11 @@ const AnimatedCategoryItem = ({ item, maxSpent, totalSpent, index, formatCurrenc
         delay: index * 100,
         useNativeDriver: true,
       }),
-      // 2. Smoothly fill the progress bar right after it fades in
       Animated.timing(fillAnim, {
         toValue: (item.totalSpent / maxSpent) * 100,
         duration: 800,
         delay: index * 100 + 300, 
-        useNativeDriver: false, // width animations don't support native driver
+        useNativeDriver: false, 
       }),
     ]).start();
   }, [item.totalSpent, maxSpent]);
@@ -94,9 +92,13 @@ export default function InsightsScreen() {
   // Data States
   const [insights, setInsights] = useState<CategoryInsight[]>([]);
   const [currentMonthSpend, setCurrentMonthSpend] = useState(0);
+  const [currentYearSpend, setCurrentYearSpend] = useState(0); // NEW: Yearly spend state
   
-  // Budget State
+  // Budget States
+  const [burnRatePeriod, setBurnRatePeriod] = useState<"month" | "year">("month"); // NEW: Toggle state
   const [monthlyBudget, setMonthlyBudget] = useState<number>(50000);
+  const [yearlyBudget, setYearlyBudget] = useState<number>(600000); // NEW: Yearly budget
+  
   const [budgetModalVisible, setBudgetModalVisible] = useState(false);
   const [editBudgetInput, setEditBudgetInput] = useState("");
 
@@ -114,14 +116,25 @@ export default function InsightsScreen() {
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
 
-        const thisMonthExpenses = allExpenses.filter((exp) => {
-          if (!exp.timestamp) return false;
+        let monthTotal = 0;
+        let yearTotal = 0;
+
+        // Calculate both month and year totals in one pass
+        allExpenses.forEach((exp) => {
+          if (!exp.timestamp) return;
           const d = new Date(exp.timestamp);
-          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+          const amount = Number(exp.amount) || 0;
+          
+          if (d.getFullYear() === currentYear) {
+            yearTotal += amount;
+            if (d.getMonth() === currentMonth) {
+              monthTotal += amount;
+            }
+          }
         });
 
-        const total = thisMonthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-        setCurrentMonthSpend(total);
+        setCurrentMonthSpend(monthTotal);
+        setCurrentYearSpend(yearTotal);
       }
     } catch {
       setInsights([]);
@@ -139,13 +152,17 @@ export default function InsightsScreen() {
   );
 
   const formatCurrency = (amount: number) => {
-    return `₹${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
+    return `₹ ${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
   };
 
   const handleSaveBudget = () => {
     const num = parseFloat(editBudgetInput);
     if (!Number.isNaN(num) && num > 0) {
-      setMonthlyBudget(num);
+      if (burnRatePeriod === "month") {
+        setMonthlyBudget(num);
+      } else {
+        setYearlyBudget(num);
+      }
     }
     setBudgetModalVisible(false);
   };
@@ -194,7 +211,7 @@ export default function InsightsScreen() {
               </View>
               <View>
                 <Text className="text-white text-lg font-light tracking-wide mb-1">Burn Rate</Text>
-                <Text className="text-gray-500 text-[10px] uppercase tracking-widest">Monthly Limit</Text>
+                <Text className="text-gray-500 text-[10px] uppercase tracking-widest">Spend Limits</Text>
               </View>
             </TouchableOpacity>
 
@@ -224,7 +241,7 @@ export default function InsightsScreen() {
     );
   }
 
-  // --- VIEW 2: CATEGORY BREAKDOWN (NOW ANIMATED!) ---
+  // --- VIEW 2: CATEGORY BREAKDOWN ---
   if (activeView === "categories") {
     const maxSpent = Math.max(...insights.map(i => i.totalSpent), 1);
     const totalSpent = insights.reduce((sum, item) => sum + item.totalSpent, 0);
@@ -239,7 +256,6 @@ export default function InsightsScreen() {
           <Text className="text-white text-sm uppercase tracking-widest font-light ml-2">Back to Menu</Text>
         </TouchableOpacity>
 
-        {/* New Hero Summary Header */}
         <View className="mb-10">
           <Text className="text-gray-500 uppercase tracking-widest text-[10px] mb-2 font-light">
             Total Tracked Spend
@@ -282,8 +298,13 @@ export default function InsightsScreen() {
 
   // --- VIEW 3: BUDGET BURN RATE ---
   if (activeView === "burnRate") {
-    const percentage = Math.min((currentMonthSpend / monthlyBudget) * 100, 100);
-    const isOverBudget = currentMonthSpend >= monthlyBudget;
+    const isMonth = burnRatePeriod === "month";
+    const activeSpend = isMonth ? currentMonthSpend : currentYearSpend;
+    const activeBudget = isMonth ? monthlyBudget : yearlyBudget;
+    const periodLabel = isMonth ? "month" : "year";
+
+    const percentage = Math.min((activeSpend / activeBudget) * 100, 100) || 0;
+    const isOverBudget = activeSpend >= activeBudget;
     
     let barColor = "bg-white";
     if (percentage > 85) barColor = "bg-red-500";
@@ -299,13 +320,13 @@ export default function InsightsScreen() {
           <Text className="text-white text-sm uppercase tracking-widest font-light ml-2">Back to Menu</Text>
         </TouchableOpacity>
 
-        <View className="flex-row justify-between items-start mb-8">
+        <View className="flex-row justify-between items-start mb-6">
           <Text className="text-white text-3xl font-light tracking-tighter">
             Burn Rate
           </Text>
           <TouchableOpacity 
             onPress={() => {
-              setEditBudgetInput(monthlyBudget.toString());
+              setEditBudgetInput(activeBudget.toString());
               setBudgetModalVisible(true);
             }}
             className="bg-gray-900/60 px-4 py-2 rounded-full border border-gray-800"
@@ -316,25 +337,47 @@ export default function InsightsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* --- PERIOD TOGGLE --- */}
+        <View className="flex-row bg-[#111111] p-1.5 rounded-full mb-8 border border-gray-900 shadow-xl">
+          <TouchableOpacity 
+            onPress={() => setBurnRatePeriod("month")}
+            activeOpacity={0.8}
+            className={`flex-1 items-center py-2.5 rounded-full ${isMonth ? 'bg-gray-800 border border-gray-700' : ''}`}
+          >
+            <Text className={`text-[10px] uppercase tracking-widest font-bold ${isMonth ? 'text-white' : 'text-gray-600'}`}>
+              Monthly
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setBurnRatePeriod("year")}
+            activeOpacity={0.8}
+            className={`flex-1 items-center py-2.5 rounded-full ${!isMonth ? 'bg-gray-800 border border-gray-700' : ''}`}
+          >
+            <Text className={`text-[10px] uppercase tracking-widest font-bold ${!isMonth ? 'text-white' : 'text-gray-600'}`}>
+              Yearly
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 shadow-xl items-center">
           <Text className="text-gray-500 uppercase tracking-widest text-[10px] mb-4">
             {isOverBudget ? "Budget Exceeded!" : "Safe to spend"}
           </Text>
           
           <Text className={`text-5xl font-light tracking-tighter mb-2 ${isOverBudget ? 'text-red-500' : 'text-white'}`}>
-            {formatCurrency(Math.max(monthlyBudget - currentMonthSpend, 0))}
+            {formatCurrency(Math.max(activeBudget - activeSpend, 0))}
           </Text>
           <Text className="text-gray-500 text-xs font-light mb-12">
-            Remaining this month
+            Remaining this {periodLabel}
           </Text>
 
           <View className="w-full">
             <View className="flex-row justify-between items-end mb-4">
               <Text className="text-gray-400 text-xs font-light">
-                {formatCurrency(currentMonthSpend)} spent
+                {formatCurrency(activeSpend)} spent
               </Text>
               <Text className="text-gray-600 text-[10px] font-bold">
-                {formatCurrency(monthlyBudget)} limit
+                {formatCurrency(activeBudget)} limit
               </Text>
             </View>
             
@@ -346,7 +389,7 @@ export default function InsightsScreen() {
             </View>
             
             <Text className="text-gray-500 text-[10px] uppercase tracking-widest text-center mt-6">
-              You have burned {percentage.toFixed(0)}% of your monthly budget.
+              You have burned {percentage.toFixed(0)}% of your {periodLabel}ly budget.
             </Text>
           </View>
         </View>
@@ -354,7 +397,9 @@ export default function InsightsScreen() {
         <Modal visible={budgetModalVisible} animationType="fade" transparent={true}>
           <View className="flex-1 justify-center items-center bg-black/90 px-8">
             <View className="w-full bg-[#111111] border border-gray-900 p-8 rounded-[32px] shadow-2xl">
-              <Text className="text-white text-2xl font-light mb-6">Set Monthly Limit</Text>
+              <Text className="text-white text-2xl font-light mb-6">
+                Set {isMonth ? "Monthly" : "Yearly"} Limit
+              </Text>
               
               <View className="flex-row items-center border-b border-gray-800 pb-2 mb-8">
                 <Text className="text-white text-3xl font-light mr-3 pb-1">₹</Text>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -9,6 +9,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -32,6 +33,44 @@ export default function AddExpenseScreen() {
   const [sms, setSms] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // --- ANIMATION STATES ---
+  const [showSuccessAnim, setShowSuccessAnim] = useState(false);
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+
+ const triggerSuccessAnimation = () => {
+    setShowSuccessAnim(true);
+    
+    Animated.parallel([
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 5,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setTimeout(() => {
+        // 1. Reset all the forms and states so the tab is clean next time
+        setShowSuccessAnim(false);
+        setAmount("");
+        setMerchant("");
+        setSms("");
+        
+        // Reset animation values instantly in the background
+        opacityAnim.setValue(0);
+        scaleAnim.setValue(0.5);
+
+        // 2. Explicitly force the app to switch to the Dashboard tab!
+        router.replace("/(tabs)/dashboard");
+      }, 1200);
+    });
+  };
+
   const handleSave = async () => {
     if (mode === "image") {
       Alert.alert("Coming Soon", "Receipt scanning is not yet available.");
@@ -47,7 +86,7 @@ export default function AddExpenseScreen() {
       try {
         const success = await submitSmsForExtraction(sms.trim());
         if (success) {
-          router.back();
+          triggerSuccessAnimation(); // Trigger the beautiful animation!
         } else {
           Alert.alert("Error", "The SMS could not be queued.");
         }
@@ -81,7 +120,7 @@ export default function AddExpenseScreen() {
       });
 
       if (success) {
-        router.back();
+        triggerSuccessAnimation(); // Trigger the beautiful animation!
       } else {
         Alert.alert("Error", "Failed to save expense. Please try again.");
       }
@@ -93,178 +132,202 @@ export default function AddExpenseScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1 bg-black pt-24"
-    >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        
-        {/* --- HEADER & MODE SELECTOR --- */}
-        <View className="px-10 mb-8">
-          <Text className="text-white text-3xl font-light tracking-tighter mb-8">
-            Add Expense
-          </Text>
+    <View className="flex-1 bg-black">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1 pt-24"
+      >
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+          
+          {/* --- HEADER & MODE SELECTOR --- */}
+          <View className="px-10 mb-8">
+            <Text className="text-white text-3xl font-light tracking-tighter mb-8">
+              Add Expense
+            </Text>
 
-          <View className="flex-row bg-[#111111] border border-gray-900 rounded-[32px] p-1.5">
-            {MODES.map((entryMode) => (
-              <TouchableOpacity
-                key={entryMode.id}
-                onPress={() => setMode(entryMode.id)}
-                className={`flex-1 flex-row h-12 rounded-[28px] justify-center items-center ${
-                  mode === entryMode.id ? "bg-white" : "bg-transparent"
-                }`}
-              >
-                <Feather 
-                  name={entryMode.icon} 
-                  size={14} 
-                  color={mode === entryMode.id ? "black" : "#6b7280"} 
-                  style={{ marginRight: 6 }}
-                />
-                <Text
-                  className={`uppercase tracking-widest text-[10px] font-bold ${
-                    mode === entryMode.id ? "text-black" : "text-gray-500"
+            <View className="flex-row bg-[#111111] border border-gray-900 rounded-[32px] p-1.5">
+              {MODES.map((entryMode) => (
+                <TouchableOpacity
+                  key={entryMode.id}
+                  onPress={() => setMode(entryMode.id)}
+                  className={`flex-1 flex-row h-12 rounded-[28px] justify-center items-center ${
+                    mode === entryMode.id ? "bg-white" : "bg-transparent"
                   }`}
                 >
-                  {entryMode.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Feather 
+                    name={entryMode.icon} 
+                    size={14} 
+                    color={mode === entryMode.id ? "black" : "#6b7280"} 
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    className={`uppercase tracking-widest text-[10px] font-bold ${
+                      mode === entryMode.id ? "text-black" : "text-gray-500"
+                    }`}
+                  >
+                    {entryMode.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
 
-        {/* --- MANUAL MODE --- */}
-        {mode === "manual" && (
-          <View className="px-6">
-            <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 mb-6 shadow-xl">
-              
-              <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-2">
-                Amount
-              </Text>
-              <View className="flex-row items-center border-b border-gray-800 pb-4 mb-8">
-                <Text className="text-white text-4xl font-light mr-3 pb-1">₹</Text>
+          {/* --- MANUAL MODE --- */}
+          {mode === "manual" && (
+            <View className="px-6">
+              <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 mb-6 shadow-xl">
+                
+                <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-2">
+                  Amount
+                </Text>
+                <View className="flex-row items-center border-b border-gray-800 pb-4 mb-8">
+                  <Text className="text-white text-4xl font-light mr-3 pb-1">₹</Text>
+                  <TextInput
+                    className="text-white text-4xl font-light flex-1"
+                    placeholder="0.00"
+                    placeholderTextColor="#333"
+                    keyboardType="decimal-pad"
+                    autoFocus
+                    value={amount}
+                    onChangeText={setAmount}
+                  />
+                </View>
+
+                <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-2">
+                  Merchant
+                </Text>
                 <TextInput
-                  className="text-white text-4xl font-light flex-1"
-                  placeholder="0.00"
+                  className="text-white text-xl py-2 border-b border-gray-800 mb-2"
+                  placeholder="Where did you spend?"
                   placeholderTextColor="#333"
-                  keyboardType="decimal-pad"
-                  autoFocus
-                  value={amount}
-                  onChangeText={setAmount}
+                  value={merchant}
+                  onChangeText={setMerchant}
                 />
               </View>
 
-              <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-2">
-                Merchant
-              </Text>
-              <TextInput
-                className="text-white text-xl py-2 border-b border-gray-800 mb-2"
-                placeholder="Where did you spend?"
-                placeholderTextColor="#333"
-                value={merchant}
-                onChangeText={setMerchant}
-              />
-            </View>
-
-            <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 mb-10 shadow-xl">
-              <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-6">
-                Category
-              </Text>
-              <View className="flex-row flex-wrap gap-3">
-                {CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setCategory(cat)}
-                    className={`px-5 py-3 rounded-full border ${
-                      category === cat
-                        ? "bg-white border-white"
-                        : "bg-black border-gray-800"
-                    }`}
-                  >
-                    <Text
-                      className={`uppercase tracking-widest text-[10px] font-bold ${
-                        category === cat ? "text-black" : "text-gray-500"
+              <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 mb-10 shadow-xl">
+                <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-6">
+                  Category
+                </Text>
+                <View className="flex-row flex-wrap gap-3">
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => setCategory(cat)}
+                      className={`px-5 py-3 rounded-full border ${
+                        category === cat
+                          ? "bg-white border-white"
+                          : "bg-black border-gray-800"
                       }`}
                     >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        className={`uppercase tracking-widest text-[10px] font-bold ${
+                          category === cat ? "text-black" : "text-gray-500"
+                        }`}
+                      >
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* --- SMS MODE --- */}
-        {mode === "sms" && (
-          <View className="px-6 mb-10">
-            <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 shadow-xl">
-              <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-4">
-                Paste Bank SMS
-              </Text>
-              <TextInput
-                className="text-white text-lg min-h-[160px] py-4 border-b border-gray-800 mb-6"
-                placeholder="e.g. Spent Rs. 500 at Starbucks via..."
-                placeholderTextColor="#333"
-                value={sms}
-                onChangeText={setSms}
-                multiline
-                textAlignVertical="top"
-              />
-              <View className="flex-row items-center">
-                <Feather name="cpu" size={14} color="#6b7280" style={{ marginRight: 8 }} />
-                <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light flex-1">
-                  AI will extract merchant, amount, category, and date automatically.
+          {/* --- SMS MODE --- */}
+          {mode === "sms" && (
+            <View className="px-6 mb-10">
+              <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 shadow-xl">
+                <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-4">
+                  Paste Bank SMS
+                </Text>
+                <TextInput
+                  className="text-white text-lg min-h-[160px] py-4 border-b border-gray-800 mb-6"
+                  placeholder="e.g. Spent Rs. 500 at Starbucks via..."
+                  placeholderTextColor="#333"
+                  value={sms}
+                  onChangeText={setSms}
+                  multiline
+                  textAlignVertical="top"
+                />
+                <View className="flex-row items-center">
+                  <Feather name="cpu" size={14} color="#6b7280" style={{ marginRight: 8 }} />
+                  <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light flex-1">
+                    AI will extract merchant, amount, category, and date automatically.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* --- IMAGE (COMING SOON) MODE --- */}
+          {mode === "image" && (
+            <View className="px-6 mb-10">
+              <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-10 items-center justify-center min-h-[350px] shadow-xl">
+                <View className="w-24 h-24 bg-gray-900 rounded-full items-center justify-center mb-6 border border-gray-800">
+                  <Feather name="camera" size={32} color="#9ca3af" />
+                </View>
+                
+                <Text className="text-white text-2xl font-light mb-3">Scan Receipt</Text>
+                
+                <View className="bg-gray-800/80 px-4 py-1.5 rounded-full mb-6 border border-gray-700">
+                  <Text className="text-gray-300 text-[10px] uppercase tracking-widest font-bold">
+                    Coming Soon
+                  </Text>
+                </View>
+
+                <Text className="text-gray-500 text-center font-light leading-relaxed text-sm">
+                  Soon you will be able to snap a photo of your physical bill. Our AI will read the receipt and instantly log the details.
                 </Text>
               </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* --- IMAGE (COMING SOON) MODE --- */}
-        {mode === "image" && (
-          <View className="px-6 mb-10">
-            <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-10 items-center justify-center min-h-[350px] shadow-xl">
-              <View className="w-24 h-24 bg-gray-900 rounded-full items-center justify-center mb-6 border border-gray-800">
-                <Feather name="camera" size={32} color="#9ca3af" />
-              </View>
-              
-              <Text className="text-white text-2xl font-light mb-3">Scan Receipt</Text>
-              
-              <View className="bg-gray-800/80 px-4 py-1.5 rounded-full mb-6 border border-gray-700">
-                <Text className="text-gray-300 text-[10px] uppercase tracking-widest font-bold">
-                  Coming Soon
+          {/* --- SAVE BUTTON --- */}
+          <View className="px-10">
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={loading || mode === "image" || showSuccessAnim}
+              className={`rounded-full h-16 justify-center items-center shadow-lg ${
+                mode === "image" ? "bg-gray-900" : "bg-white"
+              }`}
+            >
+              {loading ? (
+                <ActivityIndicator color="black" />
+              ) : (
+                <Text className={`font-bold uppercase tracking-widest ${
+                  mode === "image" ? "text-gray-500" : "text-black"
+                }`}>
+                  {mode === "manual" ? "Save Expense" : mode === "sms" ? "Queue SMS" : "Not Available"}
                 </Text>
-              </View>
-
-              <Text className="text-gray-500 text-center font-light leading-relaxed text-sm">
-                Soon you will be able to snap a photo of your physical bill. Our AI will read the receipt and instantly log the details.
-              </Text>
-            </View>
+              )}
+            </TouchableOpacity>
           </View>
-        )}
 
-        {/* --- SAVE BUTTON --- */}
-        <View className="px-10">
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={loading || mode === "image"}
-            className={`rounded-full h-16 justify-center items-center shadow-lg ${
-              mode === "image" ? "bg-gray-900" : "bg-white"
-            }`}
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* --- SUCCESS OVERLAY ANIMATION --- */}
+      {showSuccessAnim && (
+        <Animated.View 
+          className="absolute inset-0 z-50 items-center justify-center bg-black/80"
+          style={{ opacity: opacityAnim }}
+        >
+          <Animated.View 
+            className="bg-[#111111] p-10 rounded-[40px] items-center justify-center border border-gray-900 shadow-2xl"
+            style={{ transform: [{ scale: scaleAnim }] }}
           >
-            {loading ? (
-              <ActivityIndicator color="black" />
-            ) : (
-              <Text className={`font-bold uppercase tracking-widest ${
-                mode === "image" ? "text-gray-500" : "text-black"
-              }`}>
-                {mode === "manual" ? "Save Expense" : mode === "sms" ? "Queue SMS" : "Not Available"}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            <View className="w-24 h-24 bg-[#16a34a20] rounded-full items-center justify-center mb-6 border border-[#16a34a40]">
+              <Feather name="check" size={40} color="#22c55e" />
+            </View>
+            <Text className="text-white text-4xl font-light tracking-tighter mb-2">Success</Text>
+            <Text className="text-gray-500 uppercase tracking-widest text-xs font-light">
+              {mode === "sms" ? "SMS Queued" : "Expense Logged"}
+            </Text>
+          </Animated.View>
+        </Animated.View>
+      )}
 
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
