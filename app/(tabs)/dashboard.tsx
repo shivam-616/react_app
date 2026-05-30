@@ -131,7 +131,7 @@ export default function DashboardScreen() {
   );
 
   const formatCurrency = (amount: number, currencyCode: string = "INR") => {
-    const symbol = currencyCode === "INR" ? "₹" : `${currencyCode} `;
+    const symbol = currencyCode === "INR" ? "₹ " : `${currencyCode} `;
     return `${symbol}${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
   };
 
