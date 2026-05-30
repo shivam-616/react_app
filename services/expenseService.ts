@@ -1,100 +1,114 @@
-import * as SecureStore from "expo-secure-store";
+import { apiFetch, getUserId } from "./apiClient";
 
-const API_BASE_URL = "http://10.54.108.215:8000/expense/v1";
-
-export interface AddDTO {
-  userID: string;
+export interface ExpenseEntry {
+  userID?: string;
   merchant: string;
   currency: string;
-  external_id: string; // Matches @JsonProperty("external_id")
-  amount: number;
+  external_id?: string;
+  externalId?: string;
+  amount: number | string;
   category: string;
-  timestamp: string; // Matches @JsonProperty("timestamp")
+  timestamp?: string;
+  date?: string;
+  created_at?: string;
 }
 
-/**
- * Fetches expenses for the authenticated user.
- */
-export const fetchUserExpenses = async (): Promise<AddDTO[]> => {
-  try {
-    const accessToken = await SecureStore.getItemAsync("accessToken");
-    const storedUsername = await SecureStore.getItemAsync("username");
-    
-    const userId = storedUsername || "guest"; 
+export interface CategoryInsight {
+  category: string;
+  totalSpent: number;
+}
 
-    if (!accessToken) {
-      return [];
-    }
-
-    const response = await fetch(`${API_BASE_URL}/getExpense`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "X-User-Id": userId,
-        "Accept": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      const data = await response.json();
-      return Array.isArray(data) ? data : [];
-    }
-    return [];
-  } catch (error) {
-    return [];
-  }
-};
-
-/**
- * Adds a new expense to the database.
- */
-export const addExpense = async (expenseData: {
+export type AddExpenseInput = {
   merchant: string;
   amount: number;
   category: string;
   currency?: string;
-}): Promise<boolean> => {
-  try {
-    const accessToken = await SecureStore.getItemAsync("accessToken");
-    const storedUsername = await SecureStore.getItemAsync("username");
-    
-    if (!accessToken || !storedUsername) {
-      return false;
-    }
+};
 
-    const payload = {
-      userID: storedUsername,
-      merchant: expenseData.merchant,
-      currency: expenseData.currency || "USD",
-      external_id: Math.random().toString(36).substring(2, 15), // Generate a random ID
-      amount: expenseData.amount,
-      category: expenseData.category,
-      timestamp: new Date().toISOString(), // Backend expects Timestamp
-    };
+const normalizeExpense = (entry: ExpenseEntry): ExpenseEntry => ({
+  ...entry,
+  amount: Number(entry.amount) || 0,
+  external_id: entry.external_id || entry.externalId || `${entry.merchant}-${entry.timestamp}`,
+  timestamp: entry.timestamp || entry.date || entry.created_at || new Date().toISOString(),
+});
 
-    const response = await fetch(`${API_BASE_URL}/addExpense`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "X-User-Id": storedUsername,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+export const fetchUserExpenses = async (): Promise<ExpenseEntry[]> => {
+  const response = await apiFetch(
+    "/expense/v1/getExpense?page=0&size=50&sortBy=createdAt&sortDir=desc",
+    { method: "GET" },
+    { requireUserId: true },
+  );
 
-    if (!response.ok) {
-      return false;
-    }
+  if (!response.ok) {
+    return [];
+  }
 
-    const result = await response.json();
-    return result === true;
-  } catch (error) {
-    console.error("Add Expense Error:", error);
+  const data = await response.json();
+  return Array.isArray(data) ? data.map(normalizeExpense) : [];
+};
+
+export const fetchCategoryInsights = async (): Promise<CategoryInsight[]> => {
+  const response = await apiFetch(
+    "/expense/v1/insight/category",
+    { method: "GET" },
+    { requireUserId: true },
+  );
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = await response.json();
+  return Array.isArray(data)
+    ? data.map((item) => ({
+        category: item.category,
+        totalSpent: Number(item.totalSpent) || 0,
+      }))
+    : [];
+};
+
+export const addExpense = async (expenseData: AddExpenseInput): Promise<boolean> => {
+  const userId = await getUserId();
+  if (!userId) {
     return false;
   }
+
+  const payload = {
+    userID: userId,
+    merchant: expenseData.merchant.trim(),
+    currency: expenseData.currency || "INR",
+    external_id: `manual-${Date.now()}`,
+    amount: expenseData.amount,
+    category: expenseData.category,
+    timestamp: new Date().toISOString(),
+  };
+
+  const response = await apiFetch(
+    "/expense/v1/addExpense",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { requireUserId: true },
+  );
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const result = await response.json();
+  return result === true;
+};
+
+export const submitSmsForExtraction = async (sms: string): Promise<boolean> => {
+  const response = await apiFetch(
+    "/api/sms",
+    {
+      method: "POST",
+      body: JSON.stringify({ sms }),
+    },
+    { requireUserId: true },
+  );
+
+  return response.ok;
 };

@@ -1,20 +1,22 @@
 import React, { useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  ScrollView,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { registerUser } from "../services/authService";
 
+type FormKey = "firstName" | "lastName" | "username" | "email" | "phoneNumber" | "password";
+
 export default function SignupScreen() {
   const router = useRouter();
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<Record<FormKey, string>>({
     firstName: "",
     lastName: "",
     username: "",
@@ -30,26 +32,26 @@ export default function SignupScreen() {
     setLoading(true);
     setError("");
     try {
-      const success = await registerUser(
-        form.firstName, 
-        form.lastName, 
-        form.email, 
-        form.phoneNumber, 
-        form.password,
-        form.username
-      );      if (success) {
-        router.replace("/login");
+      const success = await registerUser(form);
+      if (success.ok) {
+        router.replace("/(tabs)/dashboard");
       } else {
-        setError("Registration failed");
+        setError(success.message || "Registration failed");
       }
-    } catch (err) {
+    } catch {
       setError("Something went wrong");
     } finally {
       setLoading(false);
     }
   };
 
-  const renderInput = (label, key, placeholder, keyboardType = "default", secure = false) => (
+  const renderInput = (
+    label: string,
+    key: FormKey,
+    placeholder: string,
+    keyboardType: "default" | "email-address" | "phone-pad" = "default",
+    secure = false,
+  ) => (
     <View className="mb-8">
       <Text className="text-gray-500 uppercase tracking-widest text-xs mb-2">{label}</Text>
       <TextInput
@@ -83,8 +85,8 @@ export default function SignupScreen() {
         {renderInput("Last Name", "lastName", "Doe")}
         {renderInput("Username", "username", "johndoe")}
         {renderInput("Email Address", "email", "john@example.com", "email-address")}
-        {renderInput("Phone Number", "phoneNumber", "+1 234 567 890", "phone-pad")}
-        {renderInput("Password", "password", "••••••••", "default", true)}
+        {renderInput("Phone Number", "phoneNumber", "9876543210", "phone-pad")}
+        {renderInput("Password", "password", "Password", "default", true)}
 
         {error ? <Text className="text-red-500 text-sm mb-4">{error}</Text> : null}
 

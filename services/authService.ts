@@ -1,85 +1,114 @@
-import * as SecureStore from "expo-secure-store";
+import {
+  apiFetch,
+  clearAuthSession,
+  getAccessToken,
+  saveAuthSession,
+} from "./apiClient";
 
-const API_BASE_URL = "http://10.54.108.215:8000/auth/v1";
+export type SignupForm = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  password: string;
+  username: string;
+};
 
-export const loginUser = async (username, password) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/login`, {
+export type AuthResult = {
+  ok: boolean;
+  message?: string;
+};
+
+export const loginUser = async (username: string, password: string) => {
+  const response = await apiFetch(
+    "/auth/v1/login",
+    {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, password }),
-    });
+      body: JSON.stringify({
+        username: username.trim(),
+        password,
+      }),
+    },
+    { requireAuth: false, retryOnUnauthorized: false },
+  );
 
-    if (!response.ok) {
-      return false;
-    }
-
-    const data = await response.json();
-    // Assuming JwtResponseDTO structure: { accessToken: string, refreshToken: string }
-   // FIX: Look for data.token instead of data.refreshToken to match the Java DTO
-    if (data.accessToken && data.token) {
-      await SecureStore.setItemAsync("accessToken", data.accessToken);
-      
-      // We can still save it locally under the name "refreshToken" for clarity
-      await SecureStore.setItemAsync("refreshToken", data.token); 
-      
-      // Save the username to be used in X-User-Id headers
-      await SecureStore.setItemAsync("username", username);
-      return true;
-    }
-
-    // If the tokens are missing for some reason, log the actual response to debug
-    console.warn("Backend did not return tokens:", data);
+  if (!response.ok) {
     return false;
-
-  } catch (error) {
-    console.error("Login Error:", error);
-    throw error;
   }
+
+  const session = await response.json();
+  await saveAuthSession(session, username.trim());
+  return Boolean(session.accessToken && (session.userId || session.user_id));
 };
 
-// UPDATED: Now requires explicit fields so we can format the payload perfectly for Spring Boot
-export const registerUser = async (firstName, lastName, email, phoneNumber, password, username) => {
-  try {
-    // We map the arguments to perfectly match the Java UserInfoDto class
-    const springBootPayload = {
-      username: username,    // Use the explicit username from the form
-      password: password,
-      email: email,
-      firstName: firstName,  
-      lastName: lastName,
-      phoneNumber: phoneNumber
-    };
+const readFailureMessage = async (response: Response) => {
+  const message = await response.text();
+  if (message.toLowerCase().includes("already exist")) {
+    return "That username already exists. Try signing in instead.";
+  }
 
-    const response = await fetch(`${API_BASE_URL}/signup`, {
+  return message || "Registration failed";
+};
+
+export const registerUser = async (form: SignupForm): Promise<AuthResult> => {
+  const phoneNumber = Number(form.phoneNumber.replace(/\D/g, ""));
+
+  if (!form.username.trim() || !form.password || !form.email.trim()) {
+    return { ok: false, message: "Username, email, and password are required." };
+  }
+
+  if (!phoneNumber) {
+    return { ok: false, message: "Enter a valid phone number." };
+  }
+
+  const response = await apiFetch(
+    "/auth/v1/signup",
+    {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(springBootPayload),
-    });
+      body: JSON.stringify({
+        username: form.username.trim(),
+        password: form.password,
+        first_name: form.firstName.trim(),
+        last_name: form.lastName.trim(),
+        email: form.email.trim(),
+        phone_number: Number(form.phoneNumber.replace(/\D/g, "")),
+      }),
+    },
+    { requireAuth: false, retryOnUnauthorized: false },
+  );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Backend Error:", errorText);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error("Registration Error:", error);
-    throw error;
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: await readFailureMessage(response),
+    };
   }
+
+  const session = await response.json();
+  await saveAuthSession(session, form.username.trim());
+  const ok = Boolean(session.accessToken && (session.userId || session.user_id));
+  return {
+    ok,
+    message: ok ? undefined : "The backend did not return a complete session.",
+  };
 };
 
-export const logoutUser = async () => {
-  await SecureStore.deleteItemAsync("accessToken");
-  await SecureStore.deleteItemAsync("refreshToken");
-  await SecureStore.deleteItemAsync("username");
+export const isSessionActive = async () => {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    return false;
+  }
+
+  const response = await apiFetch("/auth/v1/ping", { method: "GET" });
+  if (!response.ok) {
+    return false;
+  }
+
+  const userId = (await response.text()).trim();
+  await saveAuthSession({ userId });
+  return true;
 };
 
-export const getAccessToken = async () => {
-  return await SecureStore.getItemAsync("accessToken");
-};
+export const logoutUser = clearAuthSession;
+
+export { getAccessToken };

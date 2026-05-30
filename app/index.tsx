@@ -1,15 +1,39 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
+import { isSessionActive } from "../services/authService";
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const active = await isSessionActive();
+        if (active) {
+          router.replace("/(tabs)/dashboard");
+        }
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+
+    checkSession();
+  }, [router]);
 
   const dollarPattern = Array(20).fill("$$$$$$$$$$$$$$$").join("\n");
 
+  if (checkingSession) {
+    return (
+      <View className="flex-1 bg-black justify-center items-center">
+        <ActivityIndicator color="white" />
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-black justify-between py-20 px-10">
-      {/* Background Texture */}
       <View className="absolute inset-0 opacity-10 flex justify-center items-center">
         <Text className="text-white text-4xl leading-[60px] tracking-[10px] text-center">
           {dollarPattern}

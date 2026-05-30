@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { loginUser } from "../services/authService";
@@ -17,12 +17,14 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const [usernameFocused, setUsernameFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
   const handleLogin = async () => {
-    if (!username || !password) return;
+    if (!username || !password) {
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
@@ -32,7 +34,7 @@ export default function LoginScreen() {
       } else {
         setError("Invalid credentials");
       }
-    } catch (err) {
+    } catch {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
@@ -71,7 +73,7 @@ export default function LoginScreen() {
             className={`text-white text-lg py-3 border-b ${
               passwordFocused ? "border-white" : "border-gray-800"
             }`}
-            placeholder="••••••••"
+            placeholder="Password"
             placeholderTextColor="#444"
             value={password}
             onChangeText={setPassword}

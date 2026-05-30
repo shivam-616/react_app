@@ -1,6 +1,6 @@
 import React from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { View, Text } from "react-native";
 
 export default function TabLayout() {
   return (
@@ -21,11 +21,11 @@ export default function TabLayout() {
         name="dashboard"
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text
-              className={`text-3xl ${focused ? "text-white" : "text-gray-600"}`}
-            >
-              ⌂
-            </Text>
+            <Ionicons
+              name="leaf-outline"
+              size={24}
+              color={focused ? "white" : "#4b5563"}
+            />
           ),
         }}
       />
@@ -33,11 +33,11 @@ export default function TabLayout() {
         name="add"
         options={{
           tabBarIcon: ({ focused }) => (
-            <Text
-              className={`text-3xl ${focused ? "text-white" : "text-gray-600"}`}
-            >
-              +
-            </Text>
+            <Ionicons
+              name="add-circle-outline"
+              size={27}
+              color={focused ? "white" : "#4b5563"}
+            />
           ),
         }}
       />
