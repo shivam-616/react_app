@@ -80,7 +80,7 @@ export const addExpense = async (expenseData: AddExpenseInput): Promise<boolean>
     external_id: `manual-${Date.now()}`,
     amount: expenseData.amount,
     category: expenseData.category,
-    timestamp: new Date().toISOString(),
+    timestamp: Date.now(),
   };
 
   const response = await apiFetch(
@@ -111,4 +111,41 @@ export const submitSmsForExtraction = async (sms: string): Promise<boolean> => {
   );
 
   return response.ok;
+};
+export const updateExpense = async (expenseData: ExpenseEntry): Promise<boolean> => {
+  const userId = await getUserId();
+  if (!userId) {
+    return false;
+  }
+
+  // Convert the existing timestamp back to milliseconds for the backend 'Long' type
+  const timeInMillis = new Date(
+    expenseData.timestamp || expenseData.created_at || Date.now()
+  ).getTime();
+
+  const payload = {
+    userID: userId,
+    merchant: expenseData.merchant.trim(),
+    currency: expenseData.currency || "INR",
+    external_id: expenseData.external_id || expenseData.externalId,
+    amount: Number(expenseData.amount),
+    category: expenseData.category,
+    timestamp: timeInMillis,
+  };
+
+  const response = await apiFetch(
+    "/expense/v1/updateExpense",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { requireUserId: true },
+  );
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const result = await response.json();
+  return result === true;
 };

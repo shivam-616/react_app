@@ -48,7 +48,7 @@ export const saveAuthSession = async (
   session: AuthSessionResponse,
   username?: string,
 ) => {
-  const userId = session.userId || session.user_id;
+  const userId = session.userId || session.user_id || username;
   const refreshToken = session.refreshToken || session.token;
 
   if (session.accessToken) {

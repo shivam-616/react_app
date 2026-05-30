@@ -11,10 +11,17 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { addExpense, submitSmsForExtraction } from "../../services/expenseService";
 
 const CATEGORIES = ["Food", "Transport", "Bills", "Shopping", "Health", "Other"];
-type EntryMode = "manual" | "sms";
+
+type EntryMode = "manual" | "sms" | "image";
+const MODES: { id: EntryMode; label: string; icon: any }[] = [
+  { id: "manual", label: "Manual", icon: "edit-2" },
+  { id: "sms", label: "SMS", icon: "message-square" },
+  { id: "image", label: "Scan", icon: "camera" },
+];
 
 export default function AddExpenseScreen() {
   const router = useRouter();
@@ -26,12 +33,16 @@ export default function AddExpenseScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
+    if (mode === "image") {
+      Alert.alert("Coming Soon", "Receipt scanning is not yet available.");
+      return;
+    }
+
     if (mode === "sms") {
       if (!sms.trim()) {
         Alert.alert("Error", "Paste an SMS first.");
         return;
       }
-
       setLoading(true);
       try {
         const success = await submitSmsForExtraction(sms.trim());
@@ -48,6 +59,7 @@ export default function AddExpenseScreen() {
       return;
     }
 
+    // Manual Save Logic
     if (!amount || !merchant) {
       Alert.alert("Error", "Please fill in all fields.");
       return;
@@ -83,64 +95,78 @@ export default function AddExpenseScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1 bg-black pt-24 px-10"
+      className="flex-1 bg-black pt-24"
     >
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View className="flex-row border border-gray-900 rounded-full p-1 mb-12">
-          {(["manual", "sms"] as EntryMode[]).map((entryMode) => (
-            <TouchableOpacity
-              key={entryMode}
-              onPress={() => setMode(entryMode)}
-              className={`flex-1 h-11 rounded-full justify-center items-center ${
-                mode === entryMode ? "bg-white" : "bg-black"
-              }`}
-            >
-              <Text
-                className={`uppercase tracking-widest text-[10px] font-bold ${
-                  mode === entryMode ? "text-black" : "text-gray-500"
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+        
+        {/* --- HEADER & MODE SELECTOR --- */}
+        <View className="px-10 mb-8">
+          <Text className="text-white text-3xl font-light tracking-tighter mb-8">
+            Add Expense
+          </Text>
+
+          <View className="flex-row bg-[#111111] border border-gray-900 rounded-[32px] p-1.5">
+            {MODES.map((entryMode) => (
+              <TouchableOpacity
+                key={entryMode.id}
+                onPress={() => setMode(entryMode.id)}
+                className={`flex-1 flex-row h-12 rounded-[28px] justify-center items-center ${
+                  mode === entryMode.id ? "bg-white" : "bg-transparent"
                 }`}
               >
-                {entryMode}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Feather 
+                  name={entryMode.icon} 
+                  size={14} 
+                  color={mode === entryMode.id ? "black" : "#6b7280"} 
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  className={`uppercase tracking-widest text-[10px] font-bold ${
+                    mode === entryMode.id ? "text-black" : "text-gray-500"
+                  }`}
+                >
+                  {entryMode.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
-        {mode === "manual" ? (
-          <>
-            <View className="mb-12">
-              <Text className="text-gray-500 uppercase tracking-widest text-xs mb-4">
+        {/* --- MANUAL MODE --- */}
+        {mode === "manual" && (
+          <View className="px-6">
+            <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 mb-6 shadow-xl">
+              
+              <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-2">
                 Amount
               </Text>
-              <View className="flex-row items-center">
-                <Text className="text-white text-4xl font-light mr-3">INR</Text>
+              <View className="flex-row items-center border-b border-gray-800 pb-4 mb-8">
+                <Text className="text-white text-4xl font-light mr-3 pb-1">₹</Text>
                 <TextInput
-                  className="text-white text-7xl font-light flex-1"
+                  className="text-white text-4xl font-light flex-1"
                   placeholder="0.00"
-                  placeholderTextColor="#222"
+                  placeholderTextColor="#333"
                   keyboardType="decimal-pad"
                   autoFocus
                   value={amount}
                   onChangeText={setAmount}
                 />
               </View>
-            </View>
 
-            <View className="mb-12">
-              <Text className="text-gray-500 uppercase tracking-widest text-xs mb-2">
+              <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-2">
                 Merchant
               </Text>
               <TextInput
-                className="text-white text-2xl py-3 border-b border-gray-900"
+                className="text-white text-xl py-2 border-b border-gray-800 mb-2"
                 placeholder="Where did you spend?"
-                placeholderTextColor="#444"
+                placeholderTextColor="#333"
                 value={merchant}
                 onChangeText={setMerchant}
               />
             </View>
 
-            <View className="mb-12">
-              <Text className="text-gray-500 uppercase tracking-widest text-xs mb-6">
+            <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 mb-10 shadow-xl">
+              <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-6">
                 Category
               </Text>
               <View className="flex-row flex-wrap gap-3">
@@ -148,7 +174,7 @@ export default function AddExpenseScreen() {
                   <TouchableOpacity
                     key={cat}
                     onPress={() => setCategory(cat)}
-                    className={`px-6 py-3 rounded-full border ${
+                    className={`px-5 py-3 rounded-full border ${
                       category === cat
                         ? "bg-white border-white"
                         : "bg-black border-gray-800"
@@ -165,40 +191,79 @@ export default function AddExpenseScreen() {
                 ))}
               </View>
             </View>
-          </>
-        ) : (
-          <View className="mb-12">
-            <Text className="text-gray-500 uppercase tracking-widest text-xs mb-4">
-              Bank SMS
-            </Text>
-            <TextInput
-              className="text-white text-lg min-h-48 py-5 px-0 border-b border-gray-900"
-              placeholder="Paste the transaction message here."
-              placeholderTextColor="#444"
-              value={sms}
-              onChangeText={setSms}
-              multiline
-              textAlignVertical="top"
-            />
-            <Text className="text-gray-600 uppercase tracking-widest text-[10px] mt-4 font-light">
-              The backend will extract merchant, amount, category, and date.
-            </Text>
           </View>
         )}
 
-        <TouchableOpacity
-          onPress={handleSave}
-          disabled={loading}
-          className="bg-white rounded-full h-16 justify-center items-center mb-10"
-        >
-          {loading ? (
-            <ActivityIndicator color="black" />
-          ) : (
-            <Text className="text-black font-bold uppercase tracking-widest">
-              {mode === "manual" ? "Save Expense" : "Queue SMS"}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {/* --- SMS MODE --- */}
+        {mode === "sms" && (
+          <View className="px-6 mb-10">
+            <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-8 shadow-xl">
+              <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light mb-4">
+                Paste Bank SMS
+              </Text>
+              <TextInput
+                className="text-white text-lg min-h-[160px] py-4 border-b border-gray-800 mb-6"
+                placeholder="e.g. Spent Rs. 500 at Starbucks via..."
+                placeholderTextColor="#333"
+                value={sms}
+                onChangeText={setSms}
+                multiline
+                textAlignVertical="top"
+              />
+              <View className="flex-row items-center">
+                <Feather name="cpu" size={14} color="#6b7280" style={{ marginRight: 8 }} />
+                <Text className="text-gray-500 uppercase tracking-widest text-[10px] font-light flex-1">
+                  AI will extract merchant, amount, category, and date automatically.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* --- IMAGE (COMING SOON) MODE --- */}
+        {mode === "image" && (
+          <View className="px-6 mb-10">
+            <View className="bg-[#111111] border border-gray-900 rounded-[32px] p-10 items-center justify-center min-h-[350px] shadow-xl">
+              <View className="w-24 h-24 bg-gray-900 rounded-full items-center justify-center mb-6 border border-gray-800">
+                <Feather name="camera" size={32} color="#9ca3af" />
+              </View>
+              
+              <Text className="text-white text-2xl font-light mb-3">Scan Receipt</Text>
+              
+              <View className="bg-gray-800/80 px-4 py-1.5 rounded-full mb-6 border border-gray-700">
+                <Text className="text-gray-300 text-[10px] uppercase tracking-widest font-bold">
+                  Coming Soon
+                </Text>
+              </View>
+
+              <Text className="text-gray-500 text-center font-light leading-relaxed text-sm">
+                Soon you will be able to snap a photo of your physical bill. Our AI will read the receipt and instantly log the details.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* --- SAVE BUTTON --- */}
+        <View className="px-10">
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={loading || mode === "image"}
+            className={`rounded-full h-16 justify-center items-center shadow-lg ${
+              mode === "image" ? "bg-gray-900" : "bg-white"
+            }`}
+          >
+            {loading ? (
+              <ActivityIndicator color="black" />
+            ) : (
+              <Text className={`font-bold uppercase tracking-widest ${
+                mode === "image" ? "text-gray-500" : "text-black"
+              }`}>
+                {mode === "manual" ? "Save Expense" : mode === "sms" ? "Queue SMS" : "Not Available"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );

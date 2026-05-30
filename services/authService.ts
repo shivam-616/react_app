@@ -38,7 +38,7 @@ export const loginUser = async (username: string, password: string) => {
 
   const session = await response.json();
   await saveAuthSession(session, username.trim());
-  return Boolean(session.accessToken && (session.userId || session.user_id));
+  return Boolean(session.accessToken);
 };
 
 const readFailureMessage = async (response: Response) => {
@@ -86,7 +86,9 @@ export const registerUser = async (form: SignupForm): Promise<AuthResult> => {
 
   const session = await response.json();
   await saveAuthSession(session, form.username.trim());
-  const ok = Boolean(session.accessToken && (session.userId || session.user_id));
+  
+  // FIX: Removed the check for session.userId
+  const ok = Boolean(session.accessToken);
   return {
     ok,
     message: ok ? undefined : "The backend did not return a complete session.",
