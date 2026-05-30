@@ -100,12 +100,22 @@ export const addExpense = async (expenseData: AddExpenseInput): Promise<boolean>
   return result === true;
 };
 
-export const submitSmsForExtraction = async (sms: string): Promise<boolean> => {
+export const submitSmsForExtraction = async (
+  sms: string,
+  deviceTimestamp?: number,
+): Promise<boolean> => {
+  const payload: any = { sms };
+
+  // If we have the exact time from the phone, send it to Spring Boot!
+  if (deviceTimestamp) {
+    payload.device_timestamp = deviceTimestamp;
+  }
+
   const response = await apiFetch(
     "/api/sms",
     {
       method: "POST",
-      body: JSON.stringify({ sms }),
+      body: JSON.stringify(payload),
     },
     { requireUserId: true },
   );

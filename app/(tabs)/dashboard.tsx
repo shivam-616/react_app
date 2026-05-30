@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useMemo } from "react";
+import { syncBankMessages } from "../../services/smsSyncService"; // <-- Add this import
 import {
   ActivityIndicator,
   Alert,
@@ -48,26 +49,30 @@ export default function DashboardScreen() {
   const [editCategory, setEditCategory] = useState("Food");
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const loadExpenses = useCallback(async () => {
+  const loadExpenses = async () => {
     setIsLoading(true);
-    setError("");
     try {
-      const data = await fetchUserExpenses();
-      setExpenses(Array.isArray(data) ? data : []);
+      // --- NEW: Check for new SMS messages silently ---
+      const newMessagesFound = await syncBankMessages();
       
-      const insights = await fetchCategoryInsights();
-      if (Array.isArray(insights) && insights.length > 0) {
-        insights.sort((a, b) => b.totalSpent - a.totalSpent);
-        setTopInsight(insights[0]);
+      // If it sent new messages to Spring Boot, give Kafka 1.5 seconds to process them
+      if (newMessagesFound > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to load expenses");
-      setExpenses([]);
+      // ------------------------------------------------
+
+      // Fetch the fresh database list (this now includes any newly synced SMS!)
+      const data = await fetchUserExpenses();
+      setExpenses(data);
+      
+    } catch (error) {
+      console.error("Failed to load expenses");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
+  // Keep your existing useFocusEffect exactly as it is!
   useFocusEffect(
     useCallback(() => {
       loadExpenses();
